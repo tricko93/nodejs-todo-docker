@@ -1,0 +1,37 @@
+# Use a lightweight PHP image
+FROM php:8.2-fpm-alpine
+
+# Install required PHP extensions
+RUN apk add --no-cache --virtual .build-deps \
+    autoconf gcc g++ make && \
+    apk add --no-cache \
+    openssl-dev && \
+    pecl install -n mongodb && \
+    apk del .build-deps
+
+# Install Nginx and Composer
+RUN apk add --no-cache nginx composer jq
+
+# Copy a pre-configured php.ini file
+COPY php.ini /usr/local/etc/php/
+
+# Copy Nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Fetch the latest Adminer release tag from GitHub and remove 'v' prefix
+RUN LATEST_TAG=$(curl -s https://api.github.com/repos/vrana/adminer/releases/latest | jq -r .tag_name | sed 's/^v//') && \
+    echo "Latest Adminer version: $LATEST_TAG" && \
+    curl -L -o adminer.zip https://github.com/vrana/adminer/releases/download/v$LATEST_TAG/adminer-$LATEST_TAG.zip && \
+    unzip adminer.zip && \
+    mv adminer-$LATEST_TAG/adminer/ /var/www/html/adminer/ && \
+    rm -rf adminer-$LATEST_TAG adminer.zip
+
+# Set permissions for the web root directory
+RUN chown -R nginx:nginx /var/www/html && \
+    chmod -R 755 /var/www/html
+
+# Expose the port for Adminer
+EXPOSE 8080
+
+# Start Nginx and PHP-FPM
+CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off;'"]
