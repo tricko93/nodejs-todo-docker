@@ -1,0 +1,82 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    hostname: mongodb-service
+    container_name: mongo-db
+    restart: unless-stopped
+    env_file: .env.local
+    volumes:
+      - db_data:/data/db
+    networks:
+      - dev-todo-net
+    ports:
+      - "27017:27017"
+
+  api:
+    hostname: api-service
+    container_name: api-service
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        FOLDER: api
+    env_file: .env.local
+    environment:
+      - NODE_ENV=development
+      - MONGODB_HOST=mongodb-service
+    depends_on:
+      - mongodb
+    networks:
+      - dev-todo-net
+    ports:
+      - "3001:3001"
+    restart: always
+
+  web:
+    hostname: web-service
+    container_name: web-service
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        FOLDER: client
+    depends_on:
+      - api
+    networks:
+      - dev-todo-net
+    ports:
+      - "3000:3000"
+    restart: always
+
+  proxy:
+    hostname: proxy-service
+    build:
+      context: nginx
+      dockerfile: ./Dockerfile
+    depends_on:
+      - web
+      - api
+    networks:
+      - dev-todo-net
+    ports:
+      - "80:80"
+
+  adminer:
+    container_name: adminer-mongodb
+    build:
+      context: .
+      dockerfile: Dockerfile-adminer-alpine
+    restart: always
+    networks:
+      - dev-todo-net
+    ports:
+      - "8080:8080"
+
+networks:
+  dev-todo-net:
+    name: dev-todo-net
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
